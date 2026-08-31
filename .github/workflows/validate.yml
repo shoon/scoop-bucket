@@ -1,0 +1,57 @@
+name: Validate bucket
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate manifest and released archives
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $manifest = Get-Content bucket/fv-ssh-unlock.json -Raw | ConvertFrom-Json
+          if ($manifest.bin -ne "fv-ssh-unlock.exe") {
+            throw "unexpected executable shim"
+          }
+
+          $tempRoot = Join-Path $env:RUNNER_TEMP "fv-ssh-unlock"
+          New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+          $targets = @(
+            @{ Name = "64bit"; Run = $true },
+            @{ Name = "arm64"; Run = $false }
+          )
+
+          foreach ($target in $targets) {
+            $entry = $manifest.architecture.($target.Name)
+            $archive = Join-Path $tempRoot "$($target.Name).zip"
+            Invoke-WebRequest -Uri $entry.url -OutFile $archive
+            $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $entry.hash.ToLowerInvariant()) {
+              throw "checksum mismatch for $($target.Name)"
+            }
+
+            $extract = Join-Path $tempRoot $target.Name
+            Expand-Archive -Path $archive -DestinationPath $extract
+            $binary = Join-Path $extract "fv-ssh-unlock.exe"
+            if (-not (Test-Path $binary)) {
+              throw "archive for $($target.Name) does not contain fv-ssh-unlock.exe"
+            }
+            if ($target.Run) {
+              $output = & $binary --version
+              if ($LASTEXITCODE -ne 0 -or $output -notmatch [regex]::Escape($manifest.version)) {
+                throw "released AMD64 executable did not report manifest version"
+              }
+            }
+          }
