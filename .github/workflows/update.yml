@@ -1,0 +1,62 @@
+name: Update fv-ssh-unlock
+
+on:
+  schedule:
+    - cron: "20 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Update from the latest stable GitHub release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $headers = @{ Accept = "application/vnd.github+json" }
+          $release = Invoke-RestMethod `
+            -Headers $headers `
+            -Uri "https://api.github.com/repos/shoon/fv-ssh-unlock/releases/latest"
+
+          $path = "bucket/fv-ssh-unlock.json"
+          $manifest = Get-Content $path -Raw | ConvertFrom-Json
+          $current = [System.Management.Automation.SemanticVersion]::Parse($manifest.version)
+          $version = $release.tag_name.TrimStart("v")
+          $latest = [System.Management.Automation.SemanticVersion]::Parse($version)
+          if ($latest -le $current) {
+            Write-Host "No newer stable version is available."
+            exit 0
+          }
+
+          $base = "https://github.com/shoon/fv-ssh-unlock/releases/download/v$version"
+          $targets = @(
+            @{ Name = "64bit"; Suffix = "amd64" },
+            @{ Name = "arm64"; Suffix = "arm64" }
+          )
+          foreach ($target in $targets) {
+            $file = "fv-ssh-unlock_${version}_windows_$($target.Suffix).zip"
+            $url = "$base/$file"
+            $archive = Join-Path $env:RUNNER_TEMP $file
+            Invoke-WebRequest -Uri $url -OutFile $archive
+            $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            $manifest.architecture.($target.Name).url = $url
+            $manifest.architecture.($target.Name).hash = $hash
+          }
+          $manifest.version = $version
+          $json = $manifest | ConvertTo-Json -Depth 10
+          Set-Content -Path $path -Value $json -Encoding utf8
+
+          if (-not (git status --porcelain -- $path)) {
+            Write-Host "Manifest is already current."
+            exit 0
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- $path
+          git commit -m "Update fv-ssh-unlock to $version"
+          git push origin HEAD:main
