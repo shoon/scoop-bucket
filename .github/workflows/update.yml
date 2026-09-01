@@ -99,3 +99,49 @@ jobs:
           git add -- $path
           git commit -m "Update audio-fade-fixer to $version"
           git push origin HEAD:main
+      - name: Update Takeout Helper from the latest stable GitHub release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $headers = @{ Accept = "application/vnd.github+json" }
+          $release = Invoke-RestMethod `
+            -Headers $headers `
+            -Uri "https://api.github.com/repos/shoon/takeout-helper-gphotos/releases/latest"
+
+          $path = "bucket/takeout-helper-gphotos.json"
+          $manifest = Get-Content $path -Raw | ConvertFrom-Json
+          $current = [System.Management.Automation.SemanticVersion]::Parse($manifest.version)
+          $version = $release.tag_name.TrimStart("v")
+          $latest = [System.Management.Automation.SemanticVersion]::Parse($version)
+          if ($latest -le $current) {
+            Write-Host "No newer stable Takeout Helper version is available."
+            exit 0
+          }
+
+          $base = "https://github.com/shoon/takeout-helper-gphotos/releases/download/v$version"
+          $targets = @(
+            @{ Name = "64bit"; Suffix = "x64" },
+            @{ Name = "arm64"; Suffix = "arm64" }
+          )
+          foreach ($target in $targets) {
+            $file = "takeout-helper-gphotos-v$version-windows-$($target.Suffix).zip"
+            $url = "$base/$file"
+            $archive = Join-Path $env:RUNNER_TEMP $file
+            Invoke-WebRequest -Uri $url -OutFile $archive
+            $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            $manifest.architecture.($target.Name).url = $url
+            $manifest.architecture.($target.Name).hash = $hash
+          }
+          $manifest.version = $version
+          $json = $manifest | ConvertTo-Json -Depth 10
+          Set-Content -Path $path -Value $json -Encoding utf8
+
+          if (-not (git status --porcelain -- $path)) {
+            Write-Host "Takeout Helper manifest is already current."
+            exit 0
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- $path
+          git commit -m "Update takeout-helper-gphotos to $version"
+          git push origin HEAD:main

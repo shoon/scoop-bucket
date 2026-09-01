@@ -82,3 +82,41 @@ jobs:
           if (-not (Test-Path (Join-Path $extract "audio-fade-fixer.exe"))) {
             throw "Audio Fade Fixer archive does not contain audio-fade-fixer.exe"
           }
+      - name: Validate Takeout Helper manifest and released archives
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $manifest = Get-Content bucket/takeout-helper-gphotos.json -Raw | ConvertFrom-Json
+          if ($manifest.bin -ne "takeout-helper-gphotos.exe") {
+            throw "unexpected Takeout Helper executable shim"
+          }
+
+          $tempRoot = Join-Path $env:RUNNER_TEMP "takeout-helper-gphotos"
+          New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+          $targets = @(
+            @{ Name = "64bit"; Run = $true },
+            @{ Name = "arm64"; Run = $false }
+          )
+
+          foreach ($target in $targets) {
+            $entry = $manifest.architecture.($target.Name)
+            $archive = Join-Path $tempRoot "$($target.Name).zip"
+            Invoke-WebRequest -Uri $entry.url -OutFile $archive
+            $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $entry.hash.ToLowerInvariant()) {
+              throw "Takeout Helper checksum mismatch for $($target.Name)"
+            }
+
+            $extract = Join-Path $tempRoot "$($target.Name)-archive"
+            Expand-Archive -Path $archive -DestinationPath $extract
+            $binary = Join-Path $extract "takeout-helper-gphotos.exe"
+            if (-not (Test-Path $binary)) {
+              throw "Takeout Helper archive for $($target.Name) does not contain the executable"
+            }
+            if ($target.Run) {
+              $output = & $binary --version
+              if ($LASTEXITCODE -ne 0 -or $output -notmatch [regex]::Escape($manifest.version)) {
+                throw "released Takeout Helper AMD64 executable did not report manifest version"
+              }
+            }
+          }
