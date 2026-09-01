@@ -55,3 +55,30 @@ jobs:
               }
             }
           }
+      - name: Validate Audio Fade Fixer manifest and released archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $manifest = Get-Content bucket/audio-fade-fixer.json -Raw | ConvertFrom-Json
+          if ($manifest.shortcuts[0][0] -ne "audio-fade-fixer.exe") {
+            throw "unexpected Audio Fade Fixer shortcut executable"
+          }
+          if (($manifest.notes -join " ") -notmatch "does not restore registry values") {
+            throw "Audio Fade Fixer uninstall caveat is missing"
+          }
+
+          $entry = $manifest.architecture."64bit"
+          $tempRoot = Join-Path $env:RUNNER_TEMP "audio-fade-fixer"
+          New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+          $archive = Join-Path $tempRoot "audio-fade-fixer.zip"
+          Invoke-WebRequest -Uri $entry.url -OutFile $archive
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $entry.hash.ToLowerInvariant()) {
+            throw "Audio Fade Fixer checksum mismatch"
+          }
+
+          $extract = Join-Path $tempRoot "archive"
+          Expand-Archive -Path $archive -DestinationPath $extract
+          if (-not (Test-Path (Join-Path $extract "audio-fade-fixer.exe"))) {
+            throw "Audio Fade Fixer archive does not contain audio-fade-fixer.exe"
+          }
