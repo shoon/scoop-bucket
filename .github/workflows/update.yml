@@ -1,4 +1,4 @@
-name: Update fv-ssh-unlock
+name: Update manifests
 
 on:
   schedule:
@@ -59,4 +59,43 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- $path
           git commit -m "Update fv-ssh-unlock to $version"
+          git push origin HEAD:main
+      - name: Update Audio Fade Fixer from the latest stable GitHub release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $headers = @{ Accept = "application/vnd.github+json" }
+          $release = Invoke-RestMethod `
+            -Headers $headers `
+            -Uri "https://api.github.com/repos/shoon/audio-fade-fixer/releases/latest"
+
+          $path = "bucket/audio-fade-fixer.json"
+          $manifest = Get-Content $path -Raw | ConvertFrom-Json
+          $current = [System.Management.Automation.SemanticVersion]::Parse($manifest.version)
+          $version = $release.tag_name.TrimStart("v")
+          $latest = [System.Management.Automation.SemanticVersion]::Parse($version)
+          if ($latest -le $current) {
+            Write-Host "No newer stable Audio Fade Fixer version is available."
+            exit 0
+          }
+
+          $file = "audio-fade-fixer-v$version-windows-x64.zip"
+          $url = "https://github.com/shoon/audio-fade-fixer/releases/download/v$version/$file"
+          $archive = Join-Path $env:RUNNER_TEMP $file
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest.architecture."64bit".url = $url
+          $manifest.architecture."64bit".hash = $hash
+          $manifest.version = $version
+          $json = $manifest | ConvertTo-Json -Depth 10
+          Set-Content -Path $path -Value $json -Encoding utf8
+
+          if (-not (git status --porcelain -- $path)) {
+            Write-Host "Audio Fade Fixer manifest is already current."
+            exit 0
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- $path
+          git commit -m "Update audio-fade-fixer to $version"
           git push origin HEAD:main
