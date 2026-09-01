@@ -13,17 +13,19 @@ Add the bucket once:
 scoop bucket add shoon https://github.com/shoon/scoop-bucket
 ```
 
-Then install either application:
+Then install an application:
 
 ```powershell
 scoop install shoon/fv-ssh-unlock
 scoop install shoon/audio-fade-fixer
+scoop install shoon/takeout-helper-gphotos
 ```
 
 | Application | Windows architectures | Documentation |
 | --- | --- | --- |
 | [`fv-ssh-unlock`](https://github.com/shoon/fv-ssh-unlock) | AMD64, ARM64 | [Getting started](https://github.com/shoon/fv-ssh-unlock/blob/main/docs/getting-started.md) |
 | [`audio-fade-fixer`](https://github.com/shoon/audio-fade-fixer) | AMD64 | [Usage and safety](https://github.com/shoon/audio-fade-fixer#readme) |
+| [`takeout-helper-gphotos`](https://github.com/shoon/takeout-helper-gphotos) | AMD64, ARM64 | [Getting started](https://github.com/shoon/takeout-helper-gphotos/blob/main/docs/getting-started.md) |
 
 Each manifest selects the appropriate release archive and verifies its SHA-256
 checksum. Audio Fade Fixer installs and launches without elevation; Windows
