@@ -1,5 +1,9 @@
 # Scoop bucket for shoon projects
 
+<p align="center">
+  <a href="https://github.com/sponsors/shoon"><img src="https://img.shields.io/badge/Sponsor-shoon-EA4AAA?logo=githubsponsors&amp;logoColor=white" alt="Sponsor shoon on GitHub"></a>
+</p>
+
 This is the official project-owned Scoop bucket for Windows releases from
 [`@shoon`](https://github.com/shoon).
 
