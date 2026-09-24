@@ -1,0 +1,61 @@
+name: Feed installation smoke test
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/feed-smoke.yml']
+permissions:
+  contents: read
+concurrency:
+  group: feed-smoke-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  install:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the pinned official Scoop installer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ScoopInstaller/Install
+          ref: 1e2f334083d609986d8c8bc9e31ae8e87c39fab4
+          path: scoop-installer
+          persist-credentials: false
+      - name: Install Scoop in isolated runner directories
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:SCOOP = Join-Path $env:RUNNER_TEMP 'clean-scoop'
+          $env:SCOOP_GLOBAL = Join-Path $env:RUNNER_TEMP 'clean-scoop-global'
+          $env:SCOOP_CACHE = Join-Path $env:RUNNER_TEMP 'clean-scoop-cache'
+          "SCOOP=$env:SCOOP" >> $env:GITHUB_ENV
+          "SCOOP_GLOBAL=$env:SCOOP_GLOBAL" >> $env:GITHUB_ENV
+          "SCOOP_CACHE=$env:SCOOP_CACHE" >> $env:GITHUB_ENV
+          & ./scoop-installer/install.ps1 -RunAsAdmin -ScoopDir $env:SCOOP -ScoopGlobalDir $env:SCOOP_GLOBAL -ScoopCacheDir $env:SCOOP_CACHE
+      - name: Clean installation from the actual bucket main
+        shell: pwsh
+        env:
+          EXPECTED_EVENT_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scoop = Join-Path $env:SCOOP 'shims/scoop.ps1'
+          if (-not (Test-Path $scoop)) { throw 'Scoop installation failed' }
+          & $scoop bucket add shoon https://github.com/shoon/scoop-bucket
+          if ($LASTEXITCODE -ne 0) { throw 'Could not add the public bucket' }
+          $bucket = Join-Path $env:SCOOP 'buckets/shoon'
+          $testedMain = (git -C $bucket rev-parse HEAD).Trim()
+          if ($env:EVENT_NAME -ne 'pull_request' -and $testedMain -ne $env:EXPECTED_EVENT_SHA) { throw 'Bucket main changed; rerun against the new main' }
+          $manifest = Get-Content (Join-Path $bucket 'bucket/fv-ssh-unlock.json') -Raw | ConvertFrom-Json
+          & $scoop install shoon/fv-ssh-unlock
+          if ($LASTEXITCODE -ne 0) { throw 'Scoop package installation failed' }
+          $binary = Join-Path $env:SCOOP 'apps/fv-ssh-unlock/current/fv-ssh-unlock.exe'
+          if (-not (Test-Path $binary)) { throw 'Installed executable not found' }
+          $output = & $binary --version
+          if ($LASTEXITCODE -ne 0 -or $output -notmatch [regex]::Escape($manifest.version)) { throw 'Installed version differs from feed' }
+          $providers = & $binary credentials providers --json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $null -eq $providers.providers) { throw 'Installed CLI provider smoke test failed' }
+          $remoteMain = ((git -C $bucket ls-remote origin refs/heads/main) -split '\s+')[0]
+          if ($remoteMain -ne $testedMain) { throw 'Bucket advanced during installation; rerun' }
+          "Scoop installed $($manifest.version) from main $testedMain. Windows AMD64 execution verified; ARM64 remains archive-validated." >> $env:GITHUB_STEP_SUMMARY
