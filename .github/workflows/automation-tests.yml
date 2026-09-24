@@ -1,0 +1,58 @@
+name: Package automation tests
+on:
+  push:
+    branches: [main]
+    paths: ['.github/**', 'docs/releasing.md']
+  pull_request:
+    paths: ['.github/**', 'docs/releasing.md']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.26.7'
+          cache: false
+      - name: Lint workflow syntax and expression contexts
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+  verify-upstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Read-only verification of the existing immutable rc.4 release
+        uses: shoon/fv-ssh-unlock/.github/actions/release-tools@b279c0d42db9efb6761acba23d1130334f038a0f # reviewed release automation
+        with:
+          operation: verify
+          tag: v0.2.0-rc.4
+          expected-sha: 9428a2c332b887c23cdd9038a3f2e7a8ffc81a65
+  windows-guards:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: shoon/fv-ssh-unlock
+          ref: b279c0d42db9efb6761acba23d1130334f038a0f
+          persist-credentials: false
+      - name: Test the shared action's Python runtime and safety guards on Windows
+        shell: bash
+        run: python3 -m unittest discover -s .github/actions/release-tools -p 'test_*.py' -v
+  stable-staging:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Stage and validate without a repository write token
+        shell: pwsh
+        run: |
+          ./.github/scripts/stage-stable.ps1
+          ./.github/scripts/validate.ps1

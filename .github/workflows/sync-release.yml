@@ -1,0 +1,42 @@
+name: Sync fv-ssh-unlock release
+on:
+  schedule:
+    - cron: '37 * * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published upstream tag; blank selects the configured channel
+        type: string
+        required: false
+      channel:
+        description: Channel override (configured uses the reviewed repository policy)
+        type: choice
+        options: [configured, stable, preview]
+        default: configured
+        required: false
+      dry_run:
+        description: Verify only; do not create or update a package PR
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: fv-release-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.repository == 'shoon/scoop-bucket' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Verify upstream and prepare a version-only package PR
+        uses: shoon/fv-ssh-unlock/.github/actions/release-tools@b279c0d42db9efb6761acba23d1130334f038a0f # reviewed release automation
+        with:
+          operation: sync
+          tag: ${{ inputs.tag }}
+          channel: ${{ inputs.channel != 'configured' && inputs.channel || '' }}
+          dry-run: ${{ inputs.dry_run && 'true' || 'false' }}
