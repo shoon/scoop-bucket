@@ -32,3 +32,27 @@ jobs:
           operation: verify
           tag: v0.2.0-rc.4
           expected-sha: 9428a2c332b887c23cdd9038a3f2e7a8ffc81a65
+  windows-guards:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: shoon/fv-ssh-unlock
+          ref: 05a045b9bab8cf91376b680c4aa926ffb8fb06cf
+          persist-credentials: false
+      - name: Test the shared action's Python runtime and safety guards on Windows
+        shell: bash
+        run: python3 -m unittest discover -s .github/actions/release-tools -p 'test_*.py' -v
+  stable-staging:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Stage and validate without a repository write token
+        shell: pwsh
+        run: |
+          ./.github/scripts/stage-stable.ps1
+          ./.github/scripts/validate.ps1

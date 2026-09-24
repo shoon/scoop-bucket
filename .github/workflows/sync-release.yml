@@ -9,9 +9,10 @@ on:
         type: string
         required: false
       channel:
-        description: Channel override (blank uses the reviewed repository configuration)
+        description: Channel override (configured uses the reviewed repository policy)
         type: choice
-        options: ['', stable, preview]
+        options: [configured, stable, preview]
+        default: configured
         required: false
       dry_run:
         description: Verify only; do not create or update a package PR
@@ -37,5 +38,5 @@ jobs:
         with:
           operation: sync
           tag: ${{ inputs.tag }}
-          channel: ${{ inputs.channel }}
+          channel: ${{ inputs.channel != 'configured' && inputs.channel || '' }}
           dry-run: ${{ inputs.dry_run && 'true' || 'false' }}
