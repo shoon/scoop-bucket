@@ -34,7 +34,7 @@ jobs:
       actions: write
     steps:
       - name: Verify upstream and prepare a version-only package PR
-        uses: shoon/fv-ssh-unlock/.github/actions/release-tools@05a045b9bab8cf91376b680c4aa926ffb8fb06cf # reviewed release automation
+        uses: shoon/fv-ssh-unlock/.github/actions/release-tools@b279c0d42db9efb6761acba23d1130334f038a0f # reviewed release automation
         with:
           operation: sync
           tag: ${{ inputs.tag }}

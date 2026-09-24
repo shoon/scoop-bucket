@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Read-only verification of the existing immutable rc.4 release
-        uses: shoon/fv-ssh-unlock/.github/actions/release-tools@05a045b9bab8cf91376b680c4aa926ffb8fb06cf # reviewed release automation
+        uses: shoon/fv-ssh-unlock/.github/actions/release-tools@b279c0d42db9efb6761acba23d1130334f038a0f # reviewed release automation
         with:
           operation: verify
           tag: v0.2.0-rc.4
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: shoon/fv-ssh-unlock
-          ref: 05a045b9bab8cf91376b680c4aa926ffb8fb06cf
+          ref: b279c0d42db9efb6761acba23d1130334f038a0f
           persist-credentials: false
       - name: Test the shared action's Python runtime and safety guards on Windows
         shell: bash

@@ -28,7 +28,7 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/validate.ps1
       - name: Open tested manifest PRs instead of pushing main
-        uses: shoon/fv-ssh-unlock/.github/actions/release-tools@05a045b9bab8cf91376b680c4aa926ffb8fb06cf # reviewed release automation
+        uses: shoon/fv-ssh-unlock/.github/actions/release-tools@b279c0d42db9efb6761acba23d1130334f038a0f # reviewed release automation
         with:
           operation: stage-pr
           dry-run: 'false'
